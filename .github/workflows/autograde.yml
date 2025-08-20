@@ -22,10 +22,13 @@ jobs:
 
       - name: Initialize score + per-test flags
         run: |
-          {
-            echo "SCORE=0"
-            echo "T1=0"; echo "T2=0"; echo "T3=0"; echo "T4=0"; echo "T5=0"; echo "T6=0"
-          } >> "$GITHUB_ENV"
+          echo "SCORE=0" >> $GITHUB_ENV
+          echo "T1=0" >> $GITHUB_ENV
+          echo "T2=0" >> $GITHUB_ENV
+          echo "T3=0" >> $GITHUB_ENV
+          echo "T4=0" >> $GITHUB_ENV
+          echo "T5=0" >> $GITHUB_ENV
+          echo "T6=0" >> $GITHUB_ENV
 
       # 1) File exists: team_greetings.md (+1)
       - name: Check if team_greetings.md exists
@@ -33,10 +36,10 @@ jobs:
         run: |
           if [ -f team_greetings.md ]; then
             echo "File exists ✅ (+1)"
-            CUR=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
+            CUR=$SCORE
             CUR=$((CUR+1))
-            sed -i "/^SCORE=/d" "$GITHUB_ENV"
-            { echo "SCORE=$CUR"; echo "T1=1"; } >> "$GITHUB_ENV"
+            echo "SCORE=$CUR" >> $GITHUB_ENV
+            echo "T1=1" >> $GITHUB_ENV
           else
             echo "Missing team_greetings.md ❌"
           fi
@@ -47,10 +50,10 @@ jobs:
         run: |
           if grep -Eq "[0-9]{3}[A-Z][0-9]{3}" team_greetings.md 2>/dev/null; then
             echo "Roll number format correct ✅ (+1)"
-            CUR=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
+            CUR=$SCORE
             CUR=$((CUR+1))
-            sed -i "/^SCORE=/d" "$GITHUB_ENV"
-            { echo "SCORE=$CUR"; echo "T2=1"; } >> "$GITHUB_ENV"
+            echo "SCORE=$CUR" >> $GITHUB_ENV
+            echo "T2=1" >> $GITHUB_ENV
           else
             echo "Roll number format incorrect ❌"
           fi
@@ -62,10 +65,10 @@ jobs:
           COUNT=$(grep -Eo "[0-9]{3}[A-Z][0-9]{3}" team_greetings.md 2>/dev/null | sort -u | wc -l)
           if [ "${COUNT:-0}" -gt 2 ]; then
             echo "More than 2 roll numbers ✅ (+1)"
-            CUR=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
+            CUR=$SCORE
             CUR=$((CUR+1))
-            sed -i "/^SCORE=/d" "$GITHUB_ENV"
-            { echo "SCORE=$CUR"; echo "T3=1"; } >> "$GITHUB_ENV"
+            echo "SCORE=$CUR" >> $GITHUB_ENV
+            echo "T3=1" >> $GITHUB_ENV
           else
             echo "Not enough roll numbers ❌ (found ${COUNT:-0})"
           fi
@@ -77,10 +80,10 @@ jobs:
           BRANCH="${GITHUB_REF#refs/heads/}"
           if [[ "$BRANCH" =~ ^feature/[0-9]{3}[A-Z][0-9]{3}$ ]]; then
             echo "Branch name format correct ✅ (+2)"
-            CUR=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
+            CUR=$SCORE
             CUR=$((CUR+2))
-            sed -i "/^SCORE=/d" "$GITHUB_ENV"
-            { echo "SCORE=$CUR"; echo "T4=2"; } >> "$GITHUB_ENV"
+            echo "SCORE=$CUR" >> $GITHUB_ENV
+            echo "T4=2" >> $GITHUB_ENV
           else
             echo "Branch name format incorrect ❌ (got: $BRANCH)"
           fi
@@ -107,15 +110,15 @@ jobs:
 
           if [ "$COLLAB_COUNT" -ge 2 ]; then
             echo "Has 2+ collaborators ✅ (+2)"
-            CUR=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
+            CUR=$SCORE
             CUR=$((CUR+2))
-            sed -i "/^SCORE=/d" "$GITHUB_ENV"
-            { echo "SCORE=$CUR"; echo "T5=2"; } >> "$GITHUB_ENV"
+            echo "SCORE=$CUR" >> $GITHUB_ENV
+            echo "T5=2" >> $GITHUB_ENV
           else
             echo "Not enough collaborators ❌"
           fi
 
-      # 6) Unique commit authors by GitHub username via API (+2)
+      # 6) Unique commit authors by GitHub username via API (+3)
       - name: Check unique commit authors
         shell: bash
         env:
@@ -139,11 +142,11 @@ jobs:
           echo "$AUTHORS" | sed 's/^/  - /'
 
           if [ "${COUNT:-0}" -ge 2 ]; then
-            echo "Has 2+ unique commit authors ✅ (+2)"
-            CUR=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-            CUR=$((CUR+2))
-            sed -i "/^SCORE=/d" "$GITHUB_ENV"
-            { echo "SCORE=$CUR"; echo "T6=2"; } >> "$GITHUB_ENV"
+            echo "Has 2+ unique commit authors ✅ (+3)"
+            CUR=$SCORE
+            CUR=$((CUR+3))
+            echo "SCORE=$CUR" >> $GITHUB_ENV
+            echo "T6=3" >> $GITHUB_ENV
           else
             echo "Not enough unique commit authors ❌"
           fi
@@ -151,28 +154,27 @@ jobs:
       - name: Save score for GitHub Classroom
         shell: bash
         run: |
-          # Read values from $GITHUB_ENV (not directly from shell vars)
-          SCORE_VAL=$(grep -Eo '^SCORE=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-          T1=$(grep -Eo '^T1=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-          T2=$(grep -Eo '^T2=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-          T3=$(grep -Eo '^T3=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-          T4=$(grep -Eo '^T4=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-          T5=$(grep -Eo '^T5=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
-          T6=$(grep -Eo '^T6=[0-9]+' "$GITHUB_ENV" | cut -d= -f2 || echo 0)
+          SCORE_VAL=${SCORE:-0}
+          T1=${T1:-0}
+          T2=${T2:-0}
+          T3=${T3:-0}
+          T4=${T4:-0}
+          T5=${T5:-0}
+          T6=${T6:-0}
       
           echo "Final SCORE=$SCORE_VAL"
           mkdir -p .github/classroom
       
           cat > .github/classroom/results.json <<EOF
           {
-            "version": 1,
+           "version": 1,
             "tests": [
               { "name": "team_greetings.md exists", "score": $T1, "max_score": 1 },
               { "name": "Roll number format",       "score": $T2, "max_score": 1 },
               { "name": "3+ unique roll numbers",   "score": $T3, "max_score": 1 },
               { "name": "Branch name feature/ID",   "score": $T4, "max_score": 2 },
               { "name": "2+ collaborators (API)",   "score": $T5, "max_score": 2 },
-              { "name": "2+ commit authors (API)",  "score": $T6, "max_score": 2 }
+              { "name": "2+ commit authors (API)",  "score": $T6, "max_score": 3 }
             ],
             "summary": "Total score $SCORE_VAL out of 10"
           }
