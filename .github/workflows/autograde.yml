@@ -18,55 +18,46 @@ jobs:
         run: |
           sudo apt-get update -y && sudo apt-get install -y jq
 
-      - name: Initialize score
-        id: init
-        run: |
-          echo "SCORE=0" >> $GITHUB_ENV
-
       # 1) File exists
-      - name: Check if team_greetings.md exists
+      - id: test1
         run: |
           if [ -f team_greetings.md ]; then
-            echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
-            echo "T1=1" >> $GITHUB_ENV
+            echo "score=1" >> $GITHUB_OUTPUT
           else
-            echo "T1=0" >> $GITHUB_ENV
+            echo "score=0" >> $GITHUB_OUTPUT
           fi
 
       # 2) Roll number format
-      - name: Check roll number format
+      - id: test2
         run: |
           if grep -Eq "[0-9]{3}[A-Z][0-9]{3}" team_greetings.md 2>/dev/null; then
-            echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
-            echo "T2=1" >> $GITHUB_ENV
+            echo "score=1" >> $GITHUB_OUTPUT
           else
-            echo "T2=0" >> $GITHUB_ENV
+            echo "score=0" >> $GITHUB_OUTPUT
           fi
 
       # 3) At least 3 unique roll numbers
-      - name: Check roll number count
+      - id: test3
         run: |
           COUNT=$(grep -Eo "[0-9]{3}[A-Z][0-9]{3}" team_greetings.md 2>/dev/null | sort -u | wc -l)
           if [ "$COUNT" -gt 2 ]; then
-            echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
-            echo "T3=1" >> $GITHUB_ENV
+            echo "score=1" >> $GITHUB_OUTPUT
           else
-            echo "T3=0" >> $GITHUB_ENV
+            echo "score=0" >> $GITHUB_OUTPUT
           fi
 
       # 4) Branch name format (+2)
-      - name: Check branch name format
+      - id: test4
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
           if [[ "$BRANCH" =~ ^feature/[0-9]{3}[A-Z][0-9]{3}$ ]]; then
-            echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
-            echo "T4=2" >> $GITHUB_ENV
+            echo "score=2" >> $GITHUB_OUTPUT
           else
-            echo "T4=0" >> $GITHUB_ENV
+            echo "score=0" >> $GITHUB_OUTPUT
           fi
 
       # 5) Collaborators via API (+2)
-      - name: Check collaborators via GitHub API
+      - id: test5
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,14 +68,13 @@ jobs:
             "https://api.github.com/repos/${OWNER}/${REPO}/collaborators" || echo "")
           COLLAB_COUNT=$(echo "$RESP" | jq 'length')
           if [ "$COLLAB_COUNT" -ge 2 ]; then
-            echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
-            echo "T5=2" >> $GITHUB_ENV
+            echo "score=2" >> $GITHUB_OUTPUT
           else
-            echo "T5=0" >> $GITHUB_ENV
+            echo "score=0" >> $GITHUB_OUTPUT
           fi
 
       # 6) Unique commit authors (+3)
-      - name: Check unique commit authors
+      - id: test6
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,26 +86,36 @@ jobs:
           AUTHORS=$(echo "$RESP" | jq -r '[ .[].author.login, .[].committer.login ] | map(select(. != null)) | unique | .[]?')
           COUNT=$(echo "$AUTHORS" | grep -c . || true)
           if [ "$COUNT" -ge 2 ]; then
-            echo "SCORE=$((SCORE+3))" >> $GITHUB_ENV
-            echo "T6=3" >> $GITHUB_ENV
+            echo "score=3" >> $GITHUB_OUTPUT
           else
-            echo "T6=0" >> $GITHUB_ENV
+            echo "score=0" >> $GITHUB_OUTPUT
           fi
 
+      # Final aggregation step
       - name: Save score for GitHub Classroom
         run: |
+          S1=${{ steps.test1.outputs.score }}
+          S2=${{ steps.test2.outputs.score }}
+          S3=${{ steps.test3.outputs.score }}
+          S4=${{ steps.test4.outputs.score }}
+          S5=${{ steps.test5.outputs.score }}
+          S6=${{ steps.test6.outputs.score }}
+
+          TOTAL=$((S1+S2+S3+S4+S5+S6))
+
           mkdir -p .github/classroom
           cat > .github/classroom/results.json <<EOF
           {
             "version": 1,
             "tests": [
-              { "name": "team_greetings.md exists", "score": ${T1:-0}, "max_score": 1 },
-              { "name": "Roll number format",       "score": ${T2:-0}, "max_score": 1 },
-              { "name": "3+ unique roll numbers",   "score": ${T3:-0}, "max_score": 1 },
-              { "name": "Branch name feature/ID",   "score": ${T4:-0}, "max_score": 2 },
-              { "name": "2+ collaborators (API)",   "score": ${T5:-0}, "max_score": 2 },
-              { "name": "2+ commit authors (API)",  "score": ${T6:-0}, "max_score": 3 }
+              { "name": "team_greetings.md exists", "score": $S1, "max_score": 1 },
+              { "name": "Roll number format",       "score": $S2, "max_score": 1 },
+              { "name": "3+ unique roll numbers",   "score": $S3, "max_score": 1 },
+              { "name": "Branch name feature/ID",   "score": $S4, "max_score": 2 },
+              { "name": "2+ collaborators (API)",   "score": $S5, "max_score": 2 },
+              { "name": "2+ commit authors (API)",  "score": $S6, "max_score": 3 }
             ],
-            "summary": "Total score ${SCORE:-0} out of 10"
+            "summary": "Total score $TOTAL out of 10"
           }
           EOF
+OF
